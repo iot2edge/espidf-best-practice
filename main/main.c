@@ -1,6 +1,61 @@
 #include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "button_handler/button_handler.h"
 
-void app_main(void)
-{
+#define BUTTON_GPIO GPIO_NUM_0 // Change this to your button GPIO number
 
+// Callback function to handle button events
+void button_event_handler(button_event_t event, void* user_data) {
+    switch (event) {
+        case BUTTON_PRESS:
+            printf("Button pressed!\n");
+            break;
+        case BUTTON_RELEASE:
+            printf("Button released!\n");
+            break;
+        case BUTTON_LONG_PRESS:
+            printf("Button long pressed!\n");
+            break;
+        default:
+            break;
+    }
+}
+
+void app_main(void) {
+    // Initialize the button handler
+    esp_err_t ret = button_handler_init();
+    if (ret != ESP_OK) {
+        printf("Failed to initialize button handler: %s\n", esp_err_to_name(ret));
+        return;
+    }
+
+    // Configure the button
+    button_config_t button_config = {
+        .gpio_num = BUTTON_GPIO,
+        .debounce_ms = 50,
+        .long_press_ms = 1000,
+        .pull_up = true,
+        .callback = button_event_handler,
+        .user_data = NULL,
+        .active_low = false,
+        .method = BUTTON_HANDLER_ISR // Use ISR method
+    };
+
+    // Start monitoring the button
+    ret = button_handler_start(&button_config);
+    if (ret != ESP_OK) {
+        printf("Failed to start button handler: %s\n", esp_err_to_name(ret));
+        button_handler_deinit();
+        return;
+    }
+
+    // Main loop
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to prevent watchdog timeout
+    }
+
+    // Stop monitoring the button (cleanup)
+    button_handler_stop(&button_config);
+    button_handler_deinit();
 }
