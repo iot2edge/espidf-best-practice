@@ -2,6 +2,8 @@
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
 #include <string.h>
+#include "esp_log.h"
+#include "esp_timer.h"
 
 #ifndef CONFIG_LOG_MAXIMUM_LEVEL
 #define CONFIG_LOG_MAXIMUM_LEVEL ESP_LOG_DEBUG
@@ -47,19 +49,21 @@ static esp_err_t configure_button_gpio(const button_config_t* config) {
 }
 
 // Task to handle ISR events
-static void gpio_isr_task(void* arg) {
+static void gpio_isr_task(void *arg) {
     gpio_isr_evt_t evt;
     static uint64_t last_isr_time[MAX_BUTTONS] = {0};
-    static bool is_pressed[MAX_BUTTONS] = {0};
+    static bool is_pressed[MAX_BUTTONS] = {false};
     static uint64_t press_start_time[MAX_BUTTONS] = {0};
-    static bool long_press_triggered[MAX_BUTTONS] = {0};
+    static bool long_press_triggered[MAX_BUTTONS] = {false};
 
     while (1) {
+        // Wait for an event from the ISR queue
         if (xQueueReceive(gpio_evt_queue, &evt, portMAX_DELAY)) {
-            button_config_t* button = NULL;
-            int button_index = -1;
+            uint64_t current_time = esp_timer_get_time();
 
-            // Find corresponding button config
+            // Find the button configuration and index
+            button_config_t *button = NULL;
+            int button_index = -1;
             for (int i = 0; i < MAX_BUTTONS; i++) {
                 if (active_buttons[i] && active_buttons[i]->gpio_num == evt.gpio_num) {
                     button = active_buttons[i];
@@ -69,47 +73,52 @@ static void gpio_isr_task(void* arg) {
             }
 
             if (button && button_index >= 0) {
-                uint64_t current_time = evt.timestamp;
-
-                // Debounce check
+                // Debounce logic
                 if ((current_time - last_isr_time[button_index]) >= (button->debounce_ms * 1000)) {
                     int level = gpio_get_level(evt.gpio_num);
                     bool button_pressed = button->active_low ? (level == 0) : (level == 1);
 
-                    if (button_pressed != is_pressed[button_index]) {
-                        is_pressed[button_index] = button_pressed;
-
-                        if (button_pressed) {
-                            // Button press
-                            press_start_time[button_index] = current_time;
-                            long_press_triggered[button_index] = false;
-                            if (button->callback) {
-                                button->callback(BUTTON_PRESS, button->user_data);
-                            }
-                        } else {
-                            // Button release
-                            if (button->callback && !long_press_triggered[button_index]) {
-                                button->callback(BUTTON_RELEASE, button->user_data);
-                            }
+                    if (button_pressed && !is_pressed[button_index]) {
+                        // Button press detected
+                        press_start_time[button_index] = current_time;
+                        long_press_triggered[button_index] = false;
+                        ESP_LOGI(TAG, "Button pressed on GPIO %d", evt.gpio_num);
+                        if (button->callback) {
+                            button->callback(BUTTON_PRESS, button->user_data);
                         }
+                    } else if (!button_pressed && is_pressed[button_index]) {
+                        // Button release detected
+                        uint64_t elapsed_time = current_time - press_start_time[button_index];
+                        ESP_LOGI(TAG, "Elapsed time before release: %lld us", elapsed_time);
+                        if (button->callback && !long_press_triggered[button_index]) {
+                            button->callback(BUTTON_RELEASE, button->user_data);
+                        }
+                        long_press_triggered[button_index] = false;
                     }
 
-                    // Check for long press
+                    // Update pressed state
+                    is_pressed[button_index] = button_pressed;
+
+                    // Detect long press while button is still pressed
                     if (is_pressed[button_index] && !long_press_triggered[button_index]) {
-                        if ((current_time - press_start_time[button_index]) >= (button->long_press_ms * 1000)) {
+                        uint64_t elapsed_time = current_time - press_start_time[button_index];
+                        if (elapsed_time >= (button->long_press_ms * 1000)) {
+                            ESP_LOGI(TAG, "Long press detected on GPIO %d after %lld us", evt.gpio_num, elapsed_time);
                             if (button->callback) {
                                 button->callback(BUTTON_LONG_PRESS, button->user_data);
                             }
-                            long_press_triggered[button_index] = true;
+                            long_press_triggered[button_index] = true;  // Mark long press as triggered
                         }
                     }
 
+                    // Update last ISR time
                     last_isr_time[button_index] = current_time;
                 }
             }
         }
     }
 }
+
 
 // Initialize button handler system
 esp_err_t button_handler_init(void) {
@@ -131,7 +140,7 @@ esp_err_t button_handler_init(void) {
         }
 
         // Create ISR handling task
-        xTaskCreate(gpio_isr_task, "gpio_isr_task", 2048, NULL, 10, NULL);
+        xTaskCreate(gpio_isr_task, "gpio_isr_task", 4096, NULL, 10, NULL);
 
         // Install GPIO ISR service
         esp_err_t ret = gpio_install_isr_service(0);

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "button_handler/button_handler.h"
+#include "button_handler.h"
 
 #define BUTTON_GPIO GPIO_NUM_0 // Change this to your button GPIO number
 
@@ -38,7 +38,7 @@ void app_main(void) {
         .pull_up = true,
         .callback = button_event_handler,
         .user_data = NULL,
-        .active_low = false,
+        .active_low = true,
         .method = BUTTON_HANDLER_ISR // Use ISR method
     };
 

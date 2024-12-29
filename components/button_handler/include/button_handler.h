@@ -1,5 +1,4 @@
-#ifndef BUTTON_HANDLER_H
-#define BUTTON_HANDLER_H
+#pragma once
 
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
@@ -75,5 +74,3 @@ esp_err_t button_handler_stop(button_config_t* config);
  * @return ESP_OK on success, error code otherwise
  * */
 esp_err_t button_handler_deinit(void);
-
-#endif // BUTTON_HANDLER_H
