@@ -2,6 +2,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "button_handler.h"
+#include "spiffs_manager.h"
+#include <string.h>
 
 #define BUTTON_GPIO GPIO_NUM_0 // Change this to your button GPIO number
 
@@ -29,6 +31,25 @@ void app_main(void) {
         printf("Failed to initialize button handler: %s\n", esp_err_to_name(ret));
         return;
     }
+
+    ret = spiffs_manager_init("/spiffs", "storage");
+    if (ret != ESP_OK) {
+        ESP_LOGE("Main", "Fail to initialize SPIFFS");
+        return;
+    }
+
+    const char *data = "Hello, SPIFFS!";
+    spiffs_manager_write("/spiffs/hello.txt", data, strlen(data));
+    
+    char buffer[64];
+    ssize_t read = spiffs_manager_read("/spiffs/data.txt", buffer, sizeof(buffer));
+    if (read > 0) {
+        printf("Read from SPIFFS: %s\n", buffer);
+    } else {
+        printf("Failed to read from SPIFFS\n");
+    }
+
+    spiffs_manager_deinit("storage");
 
     // Configure the button
     button_config_t button_config = {

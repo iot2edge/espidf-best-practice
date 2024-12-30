@@ -8,7 +8,7 @@
 
 static const char *TAG = "SPIFFS_MANAGER";
 
-esp_err_t spiffs_mananger_init(const char* base_path, const char* partition_label) {
+esp_err_t spiffs_manager_init(const char* base_path, const char* partition_label) {
     esp_vfs_spiffs_conf_t conf = {
         .base_path = base_path,
         .partition_label = partition_label,
@@ -33,7 +33,7 @@ esp_err_t spiffs_mananger_init(const char* base_path, const char* partition_labe
     return ESP_OK;
 }
 
-esp_err_t spiffs_mananger_deinit(const char* partition_label) {
+esp_err_t spiffs_manager_deinit(const char* partition_label) {
     esp_err_t ret = esp_vfs_spiffs_unregister(partition_label);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to unregister SPIFFS (%s)", esp_err_to_name(ret));
@@ -43,7 +43,7 @@ esp_err_t spiffs_mananger_deinit(const char* partition_label) {
     return ESP_OK;
 }
 
-esp_err_t spiffs_mananger_write(const char* path, const char* data, size_t len) {
+esp_err_t spiffs_manager_write(const char* path, const char* data, size_t len) {
     FILE* file = fopen(path, "w");
     if (file == NULL) {
         ESP_LOGE(TAG, "Failed to open file for writing (%s)", path);
@@ -62,11 +62,11 @@ esp_err_t spiffs_mananger_write(const char* path, const char* data, size_t len) 
     return ESP_OK;
 }
 
-ssize_t spiffs_mananger_read(const char* path, char* data, size_t len) {
+ssize_t spiffs_manager_read(const char* path, char* data, size_t len) {
     FILE* file = fopen(path, "r");
     if (file == NULL) {
         ESP_LOGE(TAG, "Failed to open file for reading (%s)", path);
-        return ESP_FAIL;
+        return -1;
     }
 
     size_t read = fread(data, 1, len, file);
