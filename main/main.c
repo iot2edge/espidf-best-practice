@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "button_handler.h"
 #include "spiffs_manager.h"
-#include <string.h>
+
 
 #define BUTTON_GPIO GPIO_NUM_0 // Change this to your button GPIO number
 
